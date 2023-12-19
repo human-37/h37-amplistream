@@ -1,0 +1,114 @@
+const { faker } = require("@faker-js/faker");
+const {
+  init,
+  track,
+  Identify,
+  identify,
+} = require("@amplitude/analytics-node");
+
+// Initialize Amplitude client with your API key
+const amplitude = init("YOUR WRITE KEY");
+
+const numUsers = 10;
+
+// Define event names and their associated properties with probabilities
+const events = [
+  {
+    name: "CTA Selected",
+    properties: {
+      cta_type: ["Sign-up Now", "Sign-up For Free"],
+    },
+    probability: 1.0,
+  },
+  {
+    name: "Upgrade Initiated",
+    properties: {},
+    probability: 1.0,
+  },
+  {
+    name: "Plan Selected",
+    properties: {
+      plan_type: ["Free", "Paid"],
+    },
+    probability: 0.9,
+  },
+  {
+    name: "Payment Details Completed",
+    properties: {
+      payment_type: ["Visa", "Paypal", "Crypto"],
+      payment_plan: ["Monthly", "Yearly"],
+    },
+    probability: 0.7,
+  },
+
+  {
+    name: "Upgrade Completed",
+    properties: {},
+    probability: 0.4,
+  },
+];
+
+// Function to generate a user with traits
+function generateUser() {
+  const userId = faker.string.uuid();
+  const name = faker.person.fullName();
+  const userTraits = {
+    company: faker.company.name(),
+    name: name,
+    email: `${name.split(" ")[1].toLowerCase()}${Math.round(
+      Math.random() * 100
+    )}@fakeHuman.37`,
+  };
+  return { userId, userTraits };
+}
+
+function generateAndSendEventsWithDelay(userId, delay) {
+  let eventIndex = 0;
+  const numEvents = events.length;
+
+  function sendNextEvent() {
+    if (eventIndex < numEvents) {
+      const event = events[eventIndex];
+      if (Math.random() <= event.probability) {
+        const eventName = event.name;
+        const eventProperties = {};
+
+        for (const property in event.properties) {
+          const randomIndex = Math.floor(
+            Math.random() * event.properties[property].length
+          );
+          eventProperties[property] = event.properties[property][randomIndex];
+        }
+
+        setTimeout(() => {
+          track(eventName, eventProperties, {
+            user_id: userId,
+          });
+
+          console.log(`Sent event: ${eventName} for user: ${userId}`);
+          eventIndex++;
+          sendNextEvent();
+        }, delay);
+      } else {
+        eventIndex++;
+        sendNextEvent();
+      }
+    }
+  }
+
+  sendNextEvent();
+}
+
+let delay = 5000;
+for (let userIndex = 0; userIndex < numUsers; userIndex++) {
+  const { userId, userTraits } = generateUser();
+
+  const identifyObj = new Identify();
+  for (const trait in userTraits) {
+    identifyObj.set(trait, userTraits[trait]);
+  }
+  identify(identifyObj, { user_id: userId });
+
+  console.log(`Identified user: ${userId}`);
+  generateAndSendEventsWithDelay(userId, delay);
+}
